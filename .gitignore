@@ -1,11 +1,11 @@
-# Ignorar carpetas pesadas
+
 dataset/
 venv/
 __pycache__/
 
-# Ignorar archivos de IA pesados
+
 *.pkl
 *.csv
 
-# Ignorar archivos temporales de Octave
+
 *.jpg
