@@ -3,15 +3,14 @@ import pandas as pd
 import numpy as np
 from oct2py import octave
 
-# --- CONFIGURACIÓN INICIAL ---
+# --- CONFIGURACIÓN ---
 print("Iniciando motor de Octave...")
-# Añadimos la ruta actual. IMPORTANTE: octave.procesar debe existir en esta carpeta.
-octave.addpath(os.getcwd()) 
+octave.addpath(os.getcwd()) # Para encontrar 'procesar.m'
 
 def procesar_memoria_completa(ruta_dataset):
     datos_totales = []
     
-    # Nombres de carpetas tal cual salen en tu captura (Singular)
+    # Nombres de las carpetas padre (Singular, tal cual tu captura)
     categorias_principales = ['benigno', 'maligno']
     
     for categoria_padre in categorias_principales:
@@ -21,11 +20,12 @@ def procesar_memoria_completa(ruta_dataset):
             print(f"[AVISO] No encuentro la carpeta: {ruta_padre}")
             continue
 
-        # Busamos subcarpetas (Angioma, Nevus, etc.)
+        # Detectar subcarpetas automáticamente (Angioma, Melanoma, etc.)
         subtipos = [d for d in os.listdir(ruta_padre) if os.path.isdir(os.path.join(ruta_padre, d))]
         
         for tipo_lunar in subtipos:
             ruta_tipo = os.path.join(ruta_padre, tipo_lunar)
+            # Buscar imágenes jpg, png, jpeg (mayusculas o minusculas)
             archivos = [f for f in os.listdir(ruta_tipo) if f.lower().endswith(('.png', '.jpg', '.jpeg'))]
             
             print(f"\n--- Procesando: {tipo_lunar} ({categoria_padre}) -> {len(archivos)} fotos ---")
@@ -33,25 +33,26 @@ def procesar_memoria_completa(ruta_dataset):
             for archivo in archivos:
                 ruta_img = os.path.join(ruta_tipo, archivo)
                 try:
-                    # --- AQUÍ ESTÁ EL CAMBIO CLAVE ---
-                    # 1. Llamamos a 'procesar' (el archivo nuevo procesar.m)
-                    # 2. Usamos 'nout=4' para evitar el warning de Python
+                    # 1. Llamada a Octave (Usando nout para evitar warnings)
                     area, perimetro, color, asimetria = octave.procesar(ruta_img, nout=4)
                     
-                    # Calculo Python (Circularidad)
+                    # 2. Cálculo Circularidad
                     if perimetro > 0:
                         circularidad = (4 * np.pi * area) / (perimetro ** 2)
                     else:
                         circularidad = 0
 
+                    # 3. Guardar datos
                     datos_totales.append({
                         'Area': area,
                         'Perimetro': perimetro,
                         'Circularidad': circularidad,
                         'Color_Std': color,
                         'Asimetria': asimetria,
+                        # 0 = Benigno, 1 = Maligno
                         'Diagnostico_General': 0 if categoria_padre == 'benigno' else 1,
-                        'Tipo_Especifico': tipo_lunar
+                        # Guardamos el nombre exacto de la carpeta (Ej: "Melanoma")
+                        'Tipo_Especifico': tipo_lunar 
                     })
                     print(f"  [OK] {archivo}")
                     
@@ -60,11 +61,9 @@ def procesar_memoria_completa(ruta_dataset):
 
     return datos_totales
 
-# --- EJECUCIÓN ---
 if __name__ == "__main__":
-    print("--- INICIANDO ESCANEO DE MEMORIA ---")
+    print("--- INICIANDO ESCANEO COMPLETO ---")
     
-    # Verifica que tengas la carpeta 'dataset' al lado de este archivo
     if os.path.exists('dataset'):
         data = procesar_memoria_completa('dataset')
         
@@ -72,11 +71,12 @@ if __name__ == "__main__":
             df = pd.DataFrame(data)
             df.to_csv('memoria_entrenamiento.csv', index=False)
             print("\n" + "="*50)
-            print("¡MEMORIA GENERADA CON ÉXITO!")
-            print(f"Se guardaron {len(df)} registros.")
-            print(df.head())
+            print("¡ÉXITO TOTAL!")
+            print(f"Se generó 'memoria_entrenamiento.csv' con {len(df)} registros.")
+            print("Distribución de datos:")
+            print(df['Tipo_Especifico'].value_counts())
             print("="*50)
         else:
-            print("\n[!] No se encontraron imágenes válidas.")
+            print("\n[!] No se encontraron imágenes.")
     else:
         print("\n[!] Error: No encuentro la carpeta 'dataset'.")

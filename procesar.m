@@ -1,7 +1,10 @@
-function [area, perimetro, desviacion_color, asimetria] = procesar(ruta_imagen)
-    % IMPORTANTE: Esta palabra 'function' debe ser lo PRIMERO en el archivo.
-    
-    % Evitar error grafico
+function [area, perimetro, desviacion_color, asimetria] = procesar(ruta_imagen, debug_mode)
+    % Si no mandan el segundo argumento, asumimos falso
+    if nargin < 2
+        debug_mode = 0;
+    end
+
+    % Configuración anti-error
     try
         graphics_toolkit("gnuplot");
     catch
@@ -9,14 +12,12 @@ function [area, perimetro, desviacion_color, asimetria] = procesar(ruta_imagen)
     warning('off', 'all');
     pkg load image;
 
-    % Forzar ruta a texto
     ruta_imagen = char(ruta_imagen);
 
     try
         im = imread(ruta_imagen);
     catch
-        area = 0; perimetro = 0; desviacion_color = 0; asimetria = 0;
-        return;
+        area=0; perimetro=0; desviacion_color=0; asimetria=0; return;
     end
 
     im = imresize(im, [256, 256]);
@@ -26,6 +27,7 @@ function [area, perimetro, desviacion_color, asimetria] = procesar(ruta_imagen)
         img_gray = im;
     end
 
+    % --- SEGMENTACIÓN MEJORADA (OTSU) ---
     try
         nivel = graythresh(img_gray);
         mapa = im2bw(img_gray, nivel);
@@ -33,15 +35,28 @@ function [area, perimetro, desviacion_color, asimetria] = procesar(ruta_imagen)
         mapa = img_gray < 128;
     end
 
-    if mean(mapa(:)) > 0.5
+    % Lógica: Si las esquinas son blancas, invertir (porque el lunar debe ser blanco)
+    if mapa(1,1) == 1 && mapa(1, end) == 1
        mapa = ~mapa;
     end
     
-    mapa = bwareaopen(mapa, 50);
-    mapa = imfill(mapa, 'holes');
+    % Limpieza agresiva de ruido
+    mapa = bwareaopen(mapa, 100); % Borra manchas menores a 100px
+    mapa = imfill(mapa, 'holes'); % Rellena agujeros dentro del lunar
 
-    area = sum(mapa(:));
+    % --- GUARDAR IMAGEN DE PRUEBA (SOLO SI SE PIDE) ---
+    if debug_mode == 1
+        % Pone un borde verde alrededor de lo detectado sobre la original
+        borde = bwperim(mapa);
+        im_debug = im;
+        R = im_debug(:,:,1); G = im_debug(:,:,2); B = im_debug(:,:,3);
+        R(borde) = 0; G(borde) = 255; B(borde) = 0; % Linea Verde
+        im_debug = cat(3, R, G, B);
+        imwrite(im_debug, 'octave_debug_view.jpg');
+    end
     
+    % --- CÁLCULOS ---
+    area = sum(mapa(:));
     perim_img = bwperim(mapa);
     perimetro = sum(perim_img(:));
     
@@ -65,4 +80,4 @@ function [area, perimetro, desviacion_color, asimetria] = procesar(ruta_imagen)
     end
 
     asimetria = sum(sum(xor(izq, der_flip))) / (area + 1);
-endfunction
+end
